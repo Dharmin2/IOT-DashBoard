@@ -9,11 +9,16 @@
 // The below are constants, which cannot be changed
 #include <WiFi.h>
 #include <PubSubClient.h>
+#include <SPI.h>
+#include <MFRC522.h>
 #include "DHT.h"
 
 #define LIGHT_SENSOR_PIN  36  // ESP32 pin GIOP36 (ADC0) connected to light sensor
 #define DHT11PIN 16
+#define SS_PIN  5  // ESP32 pin GIOP5 
+#define RST_PIN 27 // ESP32 pin GIOP27 
 
+MFRC522 rfid(SS_PIN, RST_PIN);
 DHT dht(DHT11PIN, DHT11);
 const char* ssid = "VideotronWifi800";
 const char* password = "18021885";
@@ -27,15 +32,19 @@ String tempVal;
 char tempchar[50];
 String humiVal;
 char humichar[50];
-
+unsigned long uid;
+String rfidVal;
+char rfidChar[50];
 WiFiClient vanieriot;
 PubSubClient client(vanieriot);
-
 unsigned long previousMillis = 0;
 unsigned long interval = 30000;
+
 void setup() {
   Serial.begin(115200);
   initWiFi();
+  SPI.begin(); // init SPI bus
+  rfid.PCD_Init(); // init MFRC522
   dht.begin();
   client.setServer(mqtt_server, 1883);
 }
@@ -55,9 +64,22 @@ void loop() {
     previousMillis = currentMillis;
   }
   else {
+    if(rfid.PICC_IsNewCardPresent()) {
+   uid = getID();
+  if(uid != -1){
+    Serial.print("Card detected, UID: "); Serial.println(uid);
+    if (client.connect("vanieriot", mqttUser, mqttPassword)) {  
+      rfidVal = String(uid);
+      rfidVal.toCharArray(rfidChar, rfidVal.length() + 1);
+      client.publish("IoTLab/rfid",rfidChar);
+    }
+  }
+}
+  }
       int analogValue = analogRead(LIGHT_SENSOR_PIN);
       lightVal = String(analogValue);
       lightVal.toCharArray(light, lightVal.length() + 1);
+      Serial.print(rfidChar);
       //Serial.println("Analog Value = ");
       Serial.println(analogValue);
       float humi = dht.readHumidity();
@@ -66,10 +88,7 @@ void loop() {
       char humArr [8];
       dtostrf(temp, 6, 2, tempArr);
       dtostrf(humi, 6, 2, humArr);
-      Serial.print("Temperature: ");
       Serial.print(temp);
-      Serial.print("ºC ");
-      Serial.print("Humidity: ");
       Serial.println(humi);
     if (client.connect("vanieriot", mqttUser, mqttPassword)) {  
       delay(5000);
@@ -78,7 +97,6 @@ void loop() {
       client.publish("IoTLab/temp",tempArr);
     }
   }
-}
 
 void initWiFi() {
   WiFi.mode(WIFI_STA);
@@ -100,4 +118,17 @@ void reconnect() {
       delay(5000);
     }
   }
+}
+
+unsigned long getID(){
+  if ( !rfid.PICC_ReadCardSerial()) { //Since a PICC placed get Serial and continue
+    return -1;
+  }
+  unsigned long hex_num = 0;
+  hex_num =  rfid.uid.uidByte[0] << 24;
+  hex_num += rfid.uid.uidByte[1] << 16;
+  hex_num += rfid.uid.uidByte[2] <<  8;
+  hex_num += rfid.uid.uidByte[3];
+  rfid.PICC_HaltA(); // Stop reading
+  return hex_num;
 }
