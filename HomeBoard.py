@@ -41,6 +41,7 @@ GPIO.setup(LED_PIN, GPIO.OUT)
 lightVal = 0
 state = 5
 message = ""
+messageMotor = ""
 sentMotorMail = False
 sentEmailCount = 0
 in1 = 18
@@ -84,46 +85,13 @@ motor_step_counter = 0 ;
  
 def Layout(): 
     app.layout = html.Div([
-        daq.Gauge(
-            id='temperature',
-            value=0,
-            label='Temperature',
-            units="Fahrenheit",
-            max=100,
-            min=-20,
-            color={"gradient":True,"ranges":{"blue":[-20, 10],"green":[10,60],"yellow":[60,80],"red":[80,100]}},
-            style={'margin-right': '70%', 'display': 'block'}
-        ),
-
-        daq.Gauge(
-            id='humidity',
-            color={"gradient":True,"ranges":{"aqua":[0,30],"teal":[30,60],"blue":[60,80], "navy":[80,100]}},
-            label="Humidity",
-            value=0,
-            units="Percentage",
-            max=100,
-            min=0,
-            style={'margin-right': '70%', 'display': 'block','margin-bottom': '-50%'}
-        
-        ),
-        daq.LEDDisplay(
-            id='light',
-            label="Light Value ",
-            value=10,
-            style={'postion': '-50%', 'display': 'block'}
-        ),
-                    html.Img(src="https://external-content.duckduckgo.com/iu/?u=http%3A%2F%2Fwww.nickborelli.com%2Fwp-content%2Fuploads%2F2016%2F03%2Flightbulb-icon-LightBulbOn-300x300-300x300.png&f=1&nofb=1"
-            ,style={'margin-left':'auto','margin-right':'auto', 'display': 'block'}),
-        dcc.Interval(id="interval-component",
-            interval=1*10000,
-            n_intervals=0),
-        dcc.Interval(id="interval-motor",
-            interval=1*20000,
-            n_intervals=0),
-        html.H1(children=message, id = "message",style={'text-align':'center'}),
-        html.H1(children=isOn, id = "isOn",style={'text-align':'center'}),
-        html.Img(src="https://cdn3.iconfinder.com/data/icons/car-maintenance-icons/342/Fan-256.png",style={'margin-left':'auto','margin-right':'auto', 'display': 'block'}),
-        html.H1(children=motorMsg, id = "isOnMotor",style={'text-align':'center'}),
+        dbc.Nav([
+                dbc.NavLink("Page 1", href="/", id="page-1-link"),
+                dbc.NavLink("Page 2", href="/page-2", id="page-2-link"),
+                dbc.NavLink("Page 3", href="/page-3", id="page-3-link"),
+            ], vertical=True, pills=True),
+        dcc.Location(id="url",refresh=False),
+        html.Div(id='page-content')
     ])
 def connect_mqtt() -> mqtt_client:
     def on_connect(client, userdata, flags, rc):
@@ -150,9 +118,9 @@ def subscribe(client: mqtt_client):
         global message
         global lightVal
         global isOn
-        message = ""
         print(f"Received `{msg.payload.decode()}` from `{msg.topic}` topic")
-        
+        message = ""
+        messageMotor = ""
         if (msg.topic == 'IoTLab/light'):
             lightMsg = int(msg.payload.decode())
             print(lightMsg)
@@ -162,7 +130,7 @@ def subscribe(client: mqtt_client):
             tempMsg = float(msg.payload.decode())
             if (tempMsg > 20 and sentMotorMail != True and sentEmailCount == 0):
                 sendMotorEmail()
-                message = "Email was sent"
+                messageMotor = "Email was sent to Turn on motor"
                 sentEmailCount += 1
                 sentMotorMail = True
 #             elif (tempMsg < 20):
@@ -175,6 +143,7 @@ def subscribe(client: mqtt_client):
         if (state != 0 and lightMsg < 1400):
             state = 0
             isOn = "Light is On"
+            message = "Email was sent when light was turned on"
             lightVal = lightMsg
             GPIO.output(LED_PIN, GPIO.HIGH)
             sendEmail()
@@ -236,8 +205,7 @@ def getSensorData():
                   Output('isOnMotor', 'children'),
                   Input('interval-component', 'n_intervals'))
 def update_gauges(n):
-        sensorData = getSensorData()
-        return tempMsg,humiMsg,lightVal,message,isOn,motorMsg
+        return tempMsg,humiMsg,lightMsg,message,isOn,motorMsg
 
 def spinMotor():
     global motorMsg
@@ -348,8 +316,60 @@ def receiveEmail():
             #print(f'Content: {mail_content}')
 
 Layout()
+@app.callback(Output('page-content', 'children'),
+              [Input('url', 'pathname')])
+def display_page(pathname):
+    if (pathname == "/"):
+        return     html.Div([
+                daq.Gauge(
+            id='temperature',
+            value=0,
+            label='Temperature',
+            units="Fahrenheit",
+            max=100,
+            min=-20,
+            color={"gradient":True,"ranges":{"blue":[-20, 10],"green":[10,60],"yellow":[60,80],"red":[80,100]}},
+            style={'margin-right': '70%', 'display': 'block'}
+        ),
+
+        daq.Gauge(
+            id='humidity',
+            color={"gradient":True,"ranges":{"aqua":[0,30],"teal":[30,60],"blue":[60,80], "navy":[80,100]}},
+            label="Humidity",
+            value=0,
+            units="Percentage",
+            max=100,
+            min=0,
+            style={'margin-right': '70%', 'display': 'block','margin-bottom': '-50%'}
+        
+        ),
+        html.Img(src="https://external-content.duckduckgo.com/iu/?u=http%3A%2F%2Fwww.nickborelli.com%2Fwp-content%2Fuploads%2F2016%2F03%2Flightbulb-icon-LightBulbOn-300x300-300x300.png&f=1&nofb=1"
+            ,style={'margin-left':'auto','margin-right':'auto', 'display': 'block','margin-top':'130px'}),
+        daq.LEDDisplay(
+            id='light',
+            label="Light Value ",
+            value=10,
+            style={'postion': '-30%', 'display': 'block'}
+        ),
+        dcc.Interval(id="interval-component",
+            interval=1*10000,
+            n_intervals=0),
+        dcc.Interval(id="interval-motor",
+            interval=1*20000,
+            n_intervals=0),
+        html.H1(children=message, id = "message",style={'text-align':'center'}),
+        html.H1(children=message, id = "messageMotor",style={'text-align':'center'}),
+        html.H1(children=isOn, id = "isOn",style={'text-align':'center'}),
+        html.Img(src="https://cdn3.iconfinder.com/data/icons/car-maintenance-icons/342/Fan-256.png",style={'margin-left':'auto','margin-right':'auto', 'display': 'block'}),
+        html.H1(children=motorMsg, id = "isOnMotor",style={'text-align':'center'})])
+    return html.Div([
+        html.H3(f'You are on page {pathname}')
+    ])
+
 if __name__ == '__main__':
     client = connect_mqtt()
     subscribe(client)
     client.loop_start()
     app.run_server(debug=True)
+
+
