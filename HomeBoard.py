@@ -126,40 +126,37 @@ def subscribe(client: mqtt_client):
         print(f"Received `{msg.payload.decode()}` from `{msg.topic}` topic")
         message = ""
         messageMotor = ""
-        if (msg.topic == 'IoTLab/light'):
-            lightMsg = int(msg.payload.decode())
-            print(lightMsg)
-        elif (msg.topic == 'IoTLab/humi'):
-            humiMsg = float(msg.payload.decode())
-        elif (msg.topic == 'IoTLab/temp'):
-            tempMsg = float(msg.payload.decode())
-            if (tempMsg > 20 and sentMotorMail != True and sentEmailCount == 0):
-                sendMotorEmail()
-                messageMotor = "Email was sent to Turn on motor"
-                sentEmailCount += 1
-                sentMotorMail = True
-        elif (msg.topic == 'IoTLab/rfid'):
+        if (msg.topic == 'IoTLab/rfid'):
             uidMessage = msg.payload.decode();
-#             elif (tempMsg < 20):
-#                 sentEmailCount = 0
-#                 sentMotorMail = False
-#                 
-        if (sentMotorMail == True and sentEmailCount == 1):
-            reply = receiveEmail()
-                #print('is spinning')
-        if (state != 0 and lightMsg < 1400):
-            state = 0
-            isOn = "Light is On"
-            message = "Email was sent when light was turned on"
-            lightVal = lightMsg
-            GPIO.output(LED_PIN, GPIO.HIGH)
-            sendEmail()
-        elif (lightMsg > 1400):
-            state = 1
-            message = ""
-            isOn = "Light is off"
-            lightVal = lightMsg
-            GPIO.output(LED_PIN, GPIO.LOW)
+        elif (uidMessage != ""):
+            if (msg.topic == 'IoTLab/light'):
+                lightMsg = int(msg.payload.decode())
+                print(lightMsg)
+            elif (msg.topic == 'IoTLab/humi'):
+                humiMsg = float(msg.payload.decode())
+            elif (msg.topic == 'IoTLab/temp'):
+                tempMsg = float(msg.payload.decode())
+                if (tempMsg > 20 and sentMotorMail != True and sentEmailCount == 0):
+                    sendMotorEmail()
+                    messageMotor = "Email was sent to Turn on motor"
+                    sentEmailCount += 1
+                    sentMotorMail = True
+            if (sentMotorMail == True and sentEmailCount == 1):
+                reply = receiveEmail()
+                    #print('is spinning')
+            if (state != 0 and lightMsg < 1400):
+                state = 0
+                isOn = "Light is On"
+                message = "Email was sent when light was turned on"
+                lightVal = lightMsg
+                GPIO.output(LED_PIN, GPIO.HIGH)
+                sendEmail()
+            elif (lightMsg > 1400):
+                state = 1
+                message = ""
+                isOn = "Light is off"
+                lightVal = lightMsg
+                GPIO.output(LED_PIN, GPIO.LOW)
     client.subscribe(topic)
     client.on_message = on_message
 
