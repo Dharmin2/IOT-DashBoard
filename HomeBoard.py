@@ -25,7 +25,7 @@ pin = 17
 dht = DHT.DHT(pin)
 broker = '10.0.0.103'
 port = 1883
-topic = [("IoTLab/light",0),("IoTLab/temp",0),("IoTLab/humi",0)]
+topic = [("IoTLab/light",0),("IoTLab/temp",0),("IoTLab/humi",0),("IoTLab/rfid",0)]
 # generate client ID with pub prefix randomly
 client_id = f'python-mqtt-{random.randint(0, 100)}'
 username = 'Dharmin'
@@ -48,7 +48,8 @@ in1 = 18
 in2 = 23
 in3 = 25
 in4 = 22
- 
+uidNumber = -1
+uidMessage = ""
 # careful lowering this, at some point you run into the mechanical limitation of how quick your motor can move
 step_sleep = 0.002
  
@@ -87,11 +88,13 @@ def Layout():
     app.layout = html.Div([
         dbc.Nav([
                 dbc.NavLink("Page 1", href="/", id="page-1-link"),
-                dbc.NavLink("Page 2", href="/page-2", id="page-2-link"),
-                dbc.NavLink("Page 3", href="/page-3", id="page-3-link"),
+                dbc.NavLink("Page 2", href="/page-2", id="page-2-link")
             ], vertical=True, pills=True),
         dcc.Location(id="url",refresh=False),
-        html.Div(id='page-content')
+        html.Div(id='page-content'),
+        dcc.Interval(id="rfid_interval",
+        interval=1*5000,
+        n_intervals=0),
     ])
 def connect_mqtt() -> mqtt_client:
     def on_connect(client, userdata, flags, rc):
@@ -118,21 +121,25 @@ def subscribe(client: mqtt_client):
         global message
         global lightVal
         global isOn
+        global uidNumber
+        global uidMessage
         print(f"Received `{msg.payload.decode()}` from `{msg.topic}` topic")
         message = ""
         messageMotor = ""
         if (msg.topic == 'IoTLab/light'):
             lightMsg = int(msg.payload.decode())
             print(lightMsg)
-        if (msg.topic == 'IoTLab/humi'):
+        elif (msg.topic == 'IoTLab/humi'):
             humiMsg = float(msg.payload.decode())
-        if (msg.topic == 'IoTLab/temp'):
+        elif (msg.topic == 'IoTLab/temp'):
             tempMsg = float(msg.payload.decode())
             if (tempMsg > 20 and sentMotorMail != True and sentEmailCount == 0):
                 sendMotorEmail()
                 messageMotor = "Email was sent to Turn on motor"
                 sentEmailCount += 1
                 sentMotorMail = True
+        elif (msg.topic == 'IoTLab/rfid'):
+            uidMessage = msg.payload.decode();
 #             elif (tempMsg < 20):
 #                 sentEmailCount = 0
 #                 sentMotorMail = False
@@ -206,7 +213,7 @@ def getSensorData():
                   Input('interval-component', 'n_intervals'))
 def update_gauges(n):
         return tempMsg,humiMsg,lightMsg,message,isOn,motorMsg
-
+          
 def spinMotor():
     global motorMsg
     global motor_pins
@@ -319,8 +326,13 @@ Layout()
 @app.callback(Output('page-content', 'children'),
               [Input('url', 'pathname')])
 def display_page(pathname):
-    if (pathname == "/"):
-        return     html.Div([
+    global uidMessage
+    if (uidMessage == ""):
+        return html.H3(f'Please scan your rfid') 
+    if (pathname == '/'):
+        return html.Div([
+        html.H1(children=message, id = "message",style={'text-align':'center'}),
+        html.H1(children=message, id = "messageMotor",style={'text-align':'center'}),
                 daq.Gauge(
             id='temperature',
             value=0,
@@ -357,14 +369,11 @@ def display_page(pathname):
         dcc.Interval(id="interval-motor",
             interval=1*20000,
             n_intervals=0),
-        html.H1(children=message, id = "message",style={'text-align':'center'}),
-        html.H1(children=message, id = "messageMotor",style={'text-align':'center'}),
         html.H1(children=isOn, id = "isOn",style={'text-align':'center'}),
         html.Img(src="https://cdn3.iconfinder.com/data/icons/car-maintenance-icons/342/Fan-256.png",style={'margin-left':'auto','margin-right':'auto', 'display': 'block'}),
         html.H1(children=motorMsg, id = "isOnMotor",style={'text-align':'center'})])
-    return html.Div([
-        html.H3(f'You are on page {pathname}')
-    ])
+    if (pathname == "/page-2"):
+        return html.H3(f'User profile page') 
 
 if __name__ == '__main__':
     client = connect_mqtt()
