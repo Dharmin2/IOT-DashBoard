@@ -39,7 +39,7 @@ WiFiClient vanieriot;
 PubSubClient client(vanieriot);
 unsigned long previousMillis = 0;
 unsigned long interval = 30000;
-
+boolean scanned = false;
 void setup() {
   Serial.begin(115200);
   initWiFi();
@@ -66,16 +66,18 @@ void loop() {
   else {
     if(rfid.PICC_IsNewCardPresent()) {
    uid = getID();
-  if(uid != -1){
+  if(uid != -1 && scanned == false){
     Serial.print("Card detected, UID: "); Serial.println(uid);
     if (client.connect("vanieriot", mqttUser, mqttPassword)) {  
       rfidVal = String(uid);
       rfidVal.toCharArray(rfidChar, rfidVal.length() + 1);
       client.publish("IoTLab/rfid",rfidChar);
+      scanned = true;
     }
   }
 }
   }
+  if (scanned == true) {
       int analogValue = analogRead(LIGHT_SENSOR_PIN);
       lightVal = String(analogValue);
       lightVal.toCharArray(light, lightVal.length() + 1);
@@ -95,6 +97,7 @@ void loop() {
       client.publish("IoTLab/light",light);
       client.publish("IoTLab/humi",humArr);
       client.publish("IoTLab/temp",tempArr);
+    }
     }
   }
 
