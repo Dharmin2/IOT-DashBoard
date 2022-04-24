@@ -1,6 +1,5 @@
 import RPi.GPIO as GPIO
 import time
-import Freenove_DHT as DHT
 import dash
 from dash.dependencies import Input, Output
 import dash_daq as daq
@@ -17,12 +16,21 @@ import glob
 import dash_bootstrap_components as dbc
 
 # Random variables that work for some reason
-app = dash.Dash(__name__)
+external_scripts = ["/assets/jquery.min.js"]
+
+#external_stylesheets = ["assets/header.css"]
+
+
 app = dash.Dash(
-    external_stylesheets=[dbc.themes.BOOTSTRAP, dbc.icons.BOOTSTRAP]
-)
+    meta_tags=[{"name": "viewport", "content": "width=device-width, initial-scale=1"}],
+    external_stylesheets=[dbc.themes.BOOTSTRAP])
+
+app.title = "IOT DashBoard"
+#app.scripts.config.serve_locally=True
+app.css.config.serve_locally = True
+
+app.config["suppress_callback_exceptions"]=True
 pin = 17
-dht = DHT.DHT(pin)
 broker = '10.0.0.103'
 port = 1883
 topic = [("IoTLab/light",0),("IoTLab/temp",0),("IoTLab/humi",0),("IoTLab/rfid",0)]
@@ -49,7 +57,8 @@ in2 = 23
 in3 = 25
 in4 = 22
 uidNumber = -1
-uidMessage = ""
+uidMessage = "2"
+app.config["suppress_callback_exceptions"]=True
 # careful lowering this, at some point you run into the mechanical limitation of how quick your motor can move
 step_sleep = 0.002
  
@@ -83,15 +92,31 @@ GPIO.output( in4, GPIO.LOW )
  
 motor_pins = [in1,in2,in3,in4]
 motor_step_counter = 0 ;
- 
+
+SIDEBAR_STYLE = {
+    "position": "fixed",
+    "top": 0,
+    "left": 0,
+    "bottom": 0,
+    "width": "16rem",
+    "padding": "2rem 1rem",
+    "background-color": "#f8f9fa",
+}
+
+CONTENT_STYLE = {
+    "margin-left": "18rem",
+    "margin-right": "2rem",
+    "padding": "2rem 1rem",
+}
+
 def Layout(): 
     app.layout = html.Div([
         dbc.Nav([
                 dbc.NavLink("Page 1", href="/", id="page-1-link"),
-                dbc.NavLink("Page 2", href="/page-2", id="page-2-link")
-            ], vertical=True, pills=True),
+                dbc.NavLink("Page 2", href="/page-2", id="page-2-link"),
+            ], vertical=True, pills=True,style=SIDEBAR_STYLE),
         dcc.Location(id="url",refresh=False),
-        html.Div(id='page-content'),
+        html.Div(id='page-content',style=CONTENT_STYLE),
         dcc.Interval(id="rfid_interval",
         interval=1*5000,
         n_intervals=0),
@@ -328,6 +353,19 @@ def display_page(pathname):
         return html.H3(f'Please scan your rfid') 
     if (pathname == '/'):
         return html.Div([
+                    html.Div(
+            className="markdown-text",
+            children=dcc.Markdown(
+                children=(
+                    """
+            ###### What is this app about?
+            Real time IOT Dashboard that sends out data and receive response regarding
+            temperature, humidity, and light signal to decide whether or not to turn on
+            the light or fan. 
+        """
+                )
+            ),
+        ),
         html.H1(children=message, id = "message",style={'text-align':'center'}),
         html.H1(children=message, id = "messageMotor",style={'text-align':'center'}),
                 daq.Gauge(
@@ -358,7 +396,7 @@ def display_page(pathname):
             id='light',
             label="Light Value ",
             value=10,
-            style={'postion': '-30%', 'display': 'block'}
+            style={'postion': '-40%', 'display': 'block'}
         ),
         dcc.Interval(id="interval-component",
             interval=1*10000,
@@ -377,5 +415,4 @@ if __name__ == '__main__':
     subscribe(client)
     client.loop_start()
     app.run_server(debug=True)
-
 
