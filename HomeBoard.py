@@ -56,8 +56,12 @@ in1 = 18
 in2 = 23
 in3 = 25
 in4 = 22
-uidNumber = -1
-uidMessage = "2"
+users = ['','1474525640', '313552731']
+prefTemp = ['',20 , 25]
+prefHumi = ['',50, 60]
+prefLight = ['',400,1000]
+userPosition = 0
+uidMessage = "Please Scan Your RFID to Start the Guages"
 app.config["suppress_callback_exceptions"]=True
 # careful lowering this, at some point you run into the mechanical limitation of how quick your motor can move
 step_sleep = 0.002
@@ -112,8 +116,8 @@ CONTENT_STYLE = {
 def Layout(): 
     app.layout = html.Div([
         dbc.Nav([
-                dbc.NavLink("Page 1", href="/", id="page-1-link"),
-                dbc.NavLink("Page 2", href="/page-2", id="page-2-link"),
+                dbc.NavLink("Guages", href="/", id="page-1-link"),
+                dbc.NavLink("User profile", href="/page-2", id="page-2-link"),
             ], vertical=True, pills=True,style=SIDEBAR_STYLE),
         dcc.Location(id="url",refresh=False),
         html.Div(id='page-content',style=CONTENT_STYLE),
@@ -148,12 +152,16 @@ def subscribe(client: mqtt_client):
         global isOn
         global uidNumber
         global uidMessage
+        global users
+        global userPosition
         print(f"Received `{msg.payload.decode()}` from `{msg.topic}` topic")
         message = ""
         messageMotor = ""
         if (msg.topic == 'IoTLab/rfid'):
-            uidMessage = msg.payload.decode();
-        elif (uidMessage != ""):
+            uidMessage = "User UID: ", msg.payload.decode()
+            userPosition = users.index(msg.payload.decode())
+            sendUIDMail(uidMessage)
+        elif (uidMessage != "Please Scan Your RFID to Start the Guages"):
             if (msg.topic == 'IoTLab/light'):
                 lightMsg = int(msg.payload.decode())
                 print(lightMsg)
@@ -161,22 +169,22 @@ def subscribe(client: mqtt_client):
                 humiMsg = float(msg.payload.decode())
             elif (msg.topic == 'IoTLab/temp'):
                 tempMsg = float(msg.payload.decode())
-                if (tempMsg > 20 and sentMotorMail != True and sentEmailCount == 0):
+                if (tempMsg > prefTemp[userPosition] and sentMotorMail != True and sentEmailCount == 0):
                     sendMotorEmail()
                     messageMotor = "Email was sent to Turn on motor"
                     sentEmailCount += 1
                     sentMotorMail = True
             if (sentMotorMail == True and sentEmailCount == 1):
                 reply = receiveEmail()
-                    #print('is spinning')
-            if (state != 0 and lightMsg < 1400):
+                #print('is spinning')
+            if (state != 0 and lightMsg < prefLight[userPosition]):
                 state = 0
                 isOn = "Light is On"
                 message = "Email was sent when light was turned on"
                 lightVal = lightMsg
                 GPIO.output(LED_PIN, GPIO.HIGH)
                 sendEmail()
-            elif (lightMsg > 1400):
+            elif (lightMsg > prefLight[userPosition]):
                 state = 1
                 message = ""
                 isOn = "Light is off"
@@ -220,6 +228,22 @@ def sendMotorEmail():
 
         msg = f'Subject: {subject}\n\n{body}'
 
+        smtp.sendmail('dharminp721@gmail.com', 'dharminp721@gmail.com', msg)
+        
+def sendUIDMail(uid):
+    with smtplib.SMTP('smtp.gmail.com',587) as smtp :
+        smtp.ehlo()
+        smtp.starttls()
+        smtp.ehlo()
+
+        smtp.login('dharminp721@gmail.com','Python1234')
+        now = date.today()
+        d1 = now.strftime("%d/%m/%Y")
+        subject = 'User', uid , 'Logged in'
+        body = 'UID'
+
+        msg = f'Subject: {subject}\n\n{body}'
+
         smtp.sendmail('dharminp721@gmail.com', 'dharminp721@gmail.com', msg)    
         
 def getSensorData():
@@ -232,9 +256,10 @@ def getSensorData():
                   Output('message', 'children'),
                   Output('isOn', 'children'),
                   Output('isOnMotor', 'children'),
+                  Output('uidMessage', 'children'),
                   Input('interval-component', 'n_intervals'))
 def update_gauges(n):
-        return tempMsg,humiMsg,lightMsg,message,isOn,motorMsg
+        return tempMsg,humiMsg,lightMsg,message,isOn,motorMsg,uidMessage
           
 def spinMotor():
     global motorMsg
@@ -349,8 +374,9 @@ Layout()
               [Input('url', 'pathname')])
 def display_page(pathname):
     global uidMessage
-    if (uidMessage == ""):
-        return html.H3(f'Please scan your rfid') 
+    prefLightMsg = "Preferred Light: ", prefLight[userPosition]
+    prefHumiMsg = "Preferred Humidity: ", prefHumi[userPosition]
+    prefTempMsg = "Preferred Temperature: ", prefTemp[userPosition]
     if (pathname == '/'):
         return html.Div([
                     html.Div(
@@ -372,11 +398,12 @@ def display_page(pathname):
             id='temperature',
             value=0,
             label='Temperature',
-            units="Fahrenheit",
+            units="Celsius",
             max=100,
             min=-20,
             color={"gradient":True,"ranges":{"blue":[-20, 10],"green":[10,60],"yellow":[60,80],"red":[80,100]}},
-            style={'margin-right': '70%', 'display': 'block'}
+            style={'margin-right': '70%', 'display': 'block'},
+            showCurrentValue = True,
         ),
 
         daq.Gauge(
@@ -387,11 +414,11 @@ def display_page(pathname):
             units="Percentage",
             max=100,
             min=0,
-            style={'margin-right': '70%', 'display': 'block','margin-bottom': '-50%'}
-        
+            style={'margin-right': '70%', 'display': 'block','margin-bottom': '-50%'},
+            showCurrentValue = True,
         ),
-        html.Img(src="https://external-content.duckduckgo.com/iu/?u=http%3A%2F%2Fwww.nickborelli.com%2Fwp-content%2Fuploads%2F2016%2F03%2Flightbulb-icon-LightBulbOn-300x300-300x300.png&f=1&nofb=1"
-            ,style={'margin-left':'auto','margin-right':'auto', 'display': 'block','margin-top':'130px'}),
+        html.Img(src="https://external-content.duckduckgo.com/iu/?u=https%3A%2F%2Fcdn.iconscout.com%2Ficon%2Ffree%2Fpng-256%2Fbulb-idea-imagination-light-lamp-innovation-invention-6958.png&f=1&nofb=1"
+            ,style={'margin-left':'auto','margin-right':'auto', 'display': 'block','margin-top':'300px'}),
         daq.LEDDisplay(
             id='light',
             label="Light Value ",
@@ -405,14 +432,24 @@ def display_page(pathname):
             interval=1*20000,
             n_intervals=0),
         html.H1(children=isOn, id = "isOn",style={'text-align':'center'}),
-        html.Img(src="https://cdn3.iconfinder.com/data/icons/car-maintenance-icons/342/Fan-256.png",style={'margin-left':'auto','margin-right':'auto', 'display': 'block'}),
-        html.H1(children=motorMsg, id = "isOnMotor",style={'text-align':'center'})])
-    if (pathname == "/page-2"):
-        return html.H3(f'User profile page') 
+        html.Img(src="https://external-content.duckduckgo.com/iu/?u=https%3A%2F%2Fd1nhio0ox7pgb.cloudfront.net%2F_img%2Fo_collection_png%2Fgreen_dark_grey%2F256x256%2Fplain%2Ffan.png&f=1&nofb=1",style={'margin-left':'auto','margin-right':'auto', 'display': 'block'}),
+        html.H1(children=motorMsg, id = "isOnMotor",style={'text-align':'center'}),
+        html.H1(children=uidMessage, id = "uidMessage",style={'text-align':'center'}),
+        ])
+    if (pathname == '/page-2' and userPosition != 0):
+        return html.Div([
+        html.H3(children= prefLightMsg, style={'text-align':'center'}),
+        html.H3(children= prefHumiMsg, style={'text-align':'center'}),
+        html.H3(children= prefTempMsg, style={'text-align':'center'})
+    ])
+    else:
+        return html.H1(children="Please Scan RFID to see User profile", style={'text-align':'center'})
+        
 
 if __name__ == '__main__':
     client = connect_mqtt()
     subscribe(client)
     client.loop_start()
     app.run_server(debug=True)
+
 
