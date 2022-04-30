@@ -33,6 +33,7 @@ char tempchar[50];
 String humiVal;
 char humichar[50];
 unsigned long uid;
+unsigned long users[] = {313552731, 1474525640};
 String rfidVal;
 char rfidChar[50];
 WiFiClient vanieriot;
@@ -67,8 +68,8 @@ void loop() {
     if(rfid.PICC_IsNewCardPresent()) {
    uid = getID();
   if(uid != -1 && scanned == false){
-    Serial.print("Card detected, UID: "); Serial.println(uid);
-    if (client.connect("vanieriot", mqttUser, mqttPassword)) {  
+    Serial.println(uid);
+    if (client.connect("vanieriot", mqttUser, mqttPassword) && uid == users[0] || uid == users[1]) {  
       rfidVal = String(uid);
       rfidVal.toCharArray(rfidChar, rfidVal.length() + 1);
       client.publish("IoTLab/rfid",rfidChar);
