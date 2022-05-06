@@ -14,7 +14,8 @@ import imaplib
 import sys
 import glob
 import dash_bootstrap_components as dbc
-
+import os
+import pygame
 # Random variables that work for some reason
 external_scripts = ["/assets/jquery.min.js"]
 
@@ -59,7 +60,9 @@ in4 = 22
 users = ['','1474525640', '313552731']
 prefTemp = ['',20 , 25]
 prefHumi = ['',50, 60]
-prefLight = ['',400,1000]
+prefLight = ['',400,1500]
+profiles = ['','https://external-content.duckduckgo.com/iu/?u=https%3A%2F%2Fwww.spshabitat.org%2Fwp-content%2Fuploads%2F2020%2F01%2F74046195_s-300x300.jpg&f=1&nofb=1',
+            'https://external-content.duckduckgo.com/iu/?u=https%3A%2F%2Fronaldmottram.co.nz%2Fwp-content%2Fuploads%2F2019%2F01%2Fdefault-user-icon-8-300x300.jpg&f=1&nofb=1']
 userPosition = 0
 uidMessage = "Please Scan Your RFID to Start the Guages"
 app.config["suppress_callback_exceptions"]=True
@@ -113,6 +116,15 @@ CONTENT_STYLE = {
     "padding": "2rem 1rem",
 }
 
+lightOnPath="/home/pi/Downloads/SoundInOggFormat/LightOn.ogg"
+lightOffPath="/home/pi/Downloads/SoundInOggFormat/LightOff.ogg"
+fanOnPath="/home/pi/Downloads/SoundInOggFormat/FanOn.ogg"
+fanOffPath="/home/pi/Downloads/SoundInOggFormat/FanOff.ogg"
+humidityHighPath="/home/pi/Downloads/SoundInOggFormat/HumidityHigh.ogg"
+humidityLowPath="/home/pi/Downloads/SoundInOggFormat/HumidityLow.ogg"
+welcomeMsgPath="/home/pi/Downloads/SoundInOggFormat/Welcome.ogg"
+newMailPath="/home/pi/Downloads/SoundInOggFormat/NewEmailNotif.ogg"
+
 def Layout(): 
     app.layout = html.Div([
         dbc.Nav([
@@ -158,6 +170,7 @@ def subscribe(client: mqtt_client):
         message = ""
         messageMotor = ""
         if (msg.topic == 'IoTLab/rfid'):
+            audio_player(welcomeMsgPath)
             uidMessage = "User UID: ", msg.payload.decode()
             userPosition = users.index(msg.payload.decode())
             sendUIDMail(uidMessage)
@@ -172,6 +185,7 @@ def subscribe(client: mqtt_client):
                 if (tempMsg > prefTemp[userPosition] and sentMotorMail != True and sentEmailCount == 0):
                     sendMotorEmail()
                     messageMotor = "Email was sent to Turn on motor"
+                    audio_player(newMailPath)
                     sentEmailCount += 1
                     sentMotorMail = True
             if (sentMotorMail == True and sentEmailCount == 1):
@@ -181,12 +195,14 @@ def subscribe(client: mqtt_client):
                 state = 0
                 isOn = "Light is On"
                 message = "Email was sent when light was turned on"
+                audio_player(lightOnPath)
                 lightVal = lightMsg
                 GPIO.output(LED_PIN, GPIO.HIGH)
                 sendEmail()
             elif (lightMsg > prefLight[userPosition]):
                 state = 1
                 message = ""
+                audio_player(lightOffPath)
                 isOn = "Light is off"
                 lightVal = lightMsg
                 GPIO.output(LED_PIN, GPIO.LOW)
@@ -438,14 +454,26 @@ def display_page(pathname):
         ])
     if (pathname == '/page-2' and userPosition != 0):
         return html.Div([
+        html.Img(src=profiles[userPosition],style={'margin-left':'auto','margin-right':'auto', 'display': 'block'}),
         html.H3(children= prefLightMsg, style={'text-align':'center'}),
         html.H3(children= prefHumiMsg, style={'text-align':'center'}),
         html.H3(children= prefTempMsg, style={'text-align':'center'})
     ])
     else:
         return html.H1(children="Please Scan RFID to see User profile", style={'text-align':'center'})
-        
+    
+def playSound(filePath):
+    pygame.mixer.music.load(filePath)
+    pygame.mixer.music.play()
 
+def audio_player(filePath):
+    pygame.init()
+    pygame.mixer.init()
+    playSound(filePath)
+    while pygame.mixer.music.get_busy() == True:
+        continue
+    return    
+        
 if __name__ == '__main__':
     client = connect_mqtt()
     subscribe(client)
